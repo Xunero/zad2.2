@@ -3,16 +3,41 @@ session_start();
 include 'functions.php';
 
 // Inicjalizacja zmiennych
-$shape = isset($_SESSION['shape']) ? $_SESSION['shape'] : 'szescian'; // Domyślny kształt
-$randomDimensions = generateRandomDimensions($shape);
-$correctCalculations = getShapeCalculations($shape, $randomDimensions);
+$shape = $_SESSION['shape'];
+// Sprawdzanie, czy wymiary zostały już zapisane w sesji
+if (!isset($_SESSION['randomDimensions'])) {
+    // Jeśli nie, losujemy nowe wymiary
+    $_SESSION['randomDimensions'] = generateRandomDimensions($shape);
+}
 
-// Zapisanie poprawnych obliczeń w sesji, by były dostępne podczas porównania
+// Pobieranie wymiarów z sesji
+$randomDimensions = $_SESSION['randomDimensions'];
+
+// Generowanie obliczeń dla danego kształtu
+$correctCalculations = getShapeCalculations($shape, $randomDimensions);
 $_SESSION['correctCalculations'] = $correctCalculations;
 
-// Sprawdzanie, czy formularz został wysłany
 $isSurfaceCorrect = null;
 $isVolumeCorrect = null;
+$feedback = "";
+
+// Sprawdzanie odpowiedzi po wysłaniu formularza
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $userSurface = isset($_POST['user_surface_area']) ? floatval($_POST['user_surface_area']) : null;
+    $userVolume = isset($_POST['user_volume']) ? floatval($_POST['user_volume']) : null;
+
+    $epsilon = 0.01;
+
+    // Sprawdzanie odpowiedzi użytkownika
+    $isSurfaceCorrect = (abs($userSurface - $correctCalculations['surface_area']) < $epsilon);
+    $isVolumeCorrect = (abs($userVolume - $correctCalculations['volume']) < $epsilon);
+
+    if ($isSurfaceCorrect && $isVolumeCorrect) {
+        $feedback = "<p>Poprawnie! Brawo!</p>";   
+    } else {
+        $feedback = "<p>Niestety, odpowiedź jest błędna. Spróbuj jeszcze raz!</p>";
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -34,13 +59,19 @@ $isVolumeCorrect = null;
             'height' => 'Wysokość'
         ];
 
-        foreach ($randomDimensions as $dim => $value): 
-        ?>
-            <li><?php echo $dimensionLabels[$dim] . ': ' . $value; ?></li>
-        <?php endforeach; ?>
+        var_dump($randomDimensions);
+
+    
+    // Wyświetlanie wymiarów
+    foreach ($randomDimensions as $dim => $value): 
+        // Dopasowujemy etykiety do odpowiednich wymiarów
+        $label = isset($dimensionLabels[$dim]) ? $dimensionLabels[$dim] : $dim;
+    ?>
+        <li><?php echo $label . ': ' . $value; ?></li>
+    <?php endforeach; ?>
+</ul>
     </ul>
 
-    <!-- Wyświetlanie poprawnych odpowiedzi przed wysłaniem formularza -->
     <p>Oczekiwane wartości:</p>
     <ul>
         <li>Oczekiwane pole powierzchni: <?php echo round($correctCalculations['surface_area'], 2); ?></li>
@@ -57,31 +88,35 @@ $isVolumeCorrect = null;
         <button type="submit">Sprawdź</button>
     </form>
 
-    <!-- Wyświetlanie wyników po kliknięciu "Sprawdź" -->
     <?php
     
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Pobranie wymiarów wprowadzonych przez użytkownika
-    $userSurface = isset($_POST['user_surface_area']) ? floatval($_POST['user_surface_area']) : null;
-    $userVolume = isset($_POST['user_volume']) ? floatval($_POST['user_volume']) : null;
-
-    // Ustalenie marginesu błędu do porównań zmiennoprzecinkowych
-    $epsilon = 0.01;
-
-    // Sprawdzanie poprawności odpowiedzi
-    $isSurfaceCorrect = (abs($userSurface - $correctCalculations['surface_area']) < $epsilon);
-    $isVolumeCorrect = (abs($userVolume - $correctCalculations['volume']) < $epsilon);
-
-    // Wyświetlanie wyników
-    if ($isSurfaceCorrect && $isVolumeCorrect) {
-        $feedback = "<p>Poprawnie! Brawo!</p>";
-    } else {
-        $feedback = "<p>Niestety, odpowiedź jest błędna. Spróbuj jeszcze raz!</p>";
-    }
-}
     if (isset($feedback)) {
         echo $feedback;
     }
+
+    if ($isSurfaceCorrect && $isVolumeCorrect) {
+        echo '<form action="index.php" method="post">
+                <button type="submit" name="action" value="choose_another">Wybierz inną figurę</button>
+            </form>';
+
+    echo '<form action="quiz.php" method="post">
+                <button type="submit" name="action" value="next_example">Spróbuj kolejny przykład</button>
+            </form>';
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (isset($_POST['action'])) {
+            switch ($_POST['action']) {
+                case 'choose_another':
+                    header('Location: index.php');
+                    exit;
+                case 'next_example':
+                    $_SESSION['randomDimensions'] = generateRandomDimensions($shape);
+                    header('Location: quiz.php');
+                    exit;
+            }
+        }
+    }
     ?>
+
 </body>
 </html>
